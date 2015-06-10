@@ -8,18 +8,252 @@ output:
 
 ## Loading and preprocessing the data
 
+Load libraries, unzip file and read in CSV file
+
+```{r echo = TRUE}
+
+library(stringr)
+library(lubridate)
+library(lattice)
+
+# Unzip
+
+unzip("activity.zip")
+
+# Read data
+
+data <- read.csv("activity.csv") #, stringsAsFactors = FALSE)
+
+```
+
+Loop through interval column 3 times to ensure all interval values have 4 
+characters. The outer loop uses a "for i" loop, the inner loop uses sapply with 
+an anonymous function which checks for the number of characters in the value 
+compared to i in the outer loop.
+
+```{r echo = TRUE}
+
+# Outer loop
+
+for (i in 2:4){
+  
+  # Inner loop using sapply and anonymous function
+  
+  data$interval <- sapply(data$interval, function(x) {
+    if(nchar(x) < i) {
+        paste0("0", x)
+      } else {
+        x
+      }
+  })
+}
+
+# Add in colon to make interval appear like a time
+
+#first <- str_sub(data$interval,1,2)
+#last <- str_sub(data$interval,3,4)
+data$interval <- as.factor(data$interval) # paste0(first, ":", last))
+
+
+```
+
+Combine date and interval columns into a single column to get a datetime column.
+Set datetime column as time value and remove date and interval columns.
+
+```{r echo = TRUE}
+
+
+# Combine date and interval into a single column
+
+data <- cbind(datetime = paste(data$date, data$interval), data)
+
+# Set datetime column as time value
+
+data$datetime <- strptime(data$datetime, format="%Y-%m-%d %H:%M")
+data$steps <- as.numeric(data$steps)
+#data$date <- strptime(data$date, format="%Y-%m-%d")
+
+# Remove date and interval columns
+# drop <- c(3:4)
+#data <- data[, -drop]
+
+```
+
+The dataset is now clean.
+
+```{r echo = TRUE}
+
+str(data)
+head(data)
+
+```
 
 
 ## What is mean total number of steps taken per day?
 
+This code aggregates the steps data by date.
 
+```{r echo = TRUE}
+
+dailySteps <- aggregate(steps ~ date, data, sum, na.action = na.omit)
+
+```
+
+Below is a histogram of the daily steps by day.
+
+```{r echo=TRUE}
+
+hist(dailySteps[, 2], breaks = 25, col = "red", 
+     main = "Histogram of Daily Steps by Day", 
+     xlab = "Daily Steps", ylab = "Frequency of Days")
+
+```
+
+This code calculates the mean and median steps in the dataset.
+
+```{r echo = TRUE}
+
+meanSteps <- as.character(round(mean(dailySteps[,2]), digits=2))
+medianSteps <- as.character(median(dailySteps[,2]))
+
+```
+
+The mean total number of steps per day is `r meanSteps` and the median total number of
+steps is `r medianSteps`.
 
 ## What is the average daily activity pattern?
 
+The code below groups the daily activity pattern and creates a plot of the 5 
+minute interval (x-axis) and the average number of steps taken across all days.
+
+```{r echo=TRUE}
+
+intervals <- levels(data$interval)
+intervalSteps <- aggregate(steps ~ interval, data, mean, na.action = na.omit)
+
+plot(intervals, intervalSteps[,2], type = "l", 
+     main= "Average Daily Activity Pattern", xlab = "Time Interval", 
+     ylab = "Average Number of Steps Taken", col = "red")
+
+```
+
+The code below calculates the 5 minute interval which on average contains the 
+maximum number of steps.
+
+```{r echo = TRUE}
+
+max <- which(intervalSteps[,2]== max(intervalSteps[,2]))
+maxInterval <- intervalSteps[max,1]
+
+# Add in colon to make interval appear like a time
+
+first <- str_sub(maxInterval,1,2)
+last <- str_sub(maxInterval,3,4)
+maxInterval <- paste0(first, ":", last)
+
+```
+
+The `r maxInterval` interval contains the maximum number of steps on average 
+across all the days in the dataset.
 
 
 ## Imputing missing values
 
+The code below counts number of NAs. 
+
+```{r echo=TRUE}
+
+# is.na gives a logical vector, so we can count NAs with sum
+NAs <- is.na(data$steps)
+numNA <- sum(NAs)
+
+```
+
+There are `r numNA` NAs in the dataset.
+
+We will replace the NAs with the mean value for that interval.
+
+```{r echo = TRUE}
+
+# Get the NA rows in data$steps
+NAs <- which(NAs)
+#Get the number of days with NAs in the dataset
+NADays <- length(NAs)/length(intervalSteps[,2])
+
+# Create new dataset 
+newData <- data
+
+#with intervalSteps repeated by the number of NADays
+newData$steps[NAs] <- rep(intervalSteps[,2], NADays)
+  
+```
+
+The code below generates a histogram of the total number of steps taken each 
+day in the new dataset.
+
+```{r echo = TRUE}
+
+dailyStepsNew <- aggregate(steps ~ date, newData, sum, na.action = na.omit)
+
+hist(dailyStepsNew[, 2], breaks = 25, col = "red", 
+     main = "Histogram of Daily Steps by Day", 
+     xlab = "Daily Steps", ylab = "Frequency of Days")
+
+
+```
+
+This code calculates the mean and median steps in the new dataset.
+
+```{r echo = TRUE}
+
+meanStepsNew <- as.character(round(mean(dailyStepsNew[,2]), digits=2))
+medianStepsNew <- as.character(round(median(dailyStepsNew[,2]), digits = 2))
+
+```
+
+The mean total number of steps per day is `r meanStepsNew` and the median total
+number of steps is `r medianStepsNew`.
+
+The median steps value has now become the mean steps value, while the histogram
+of the fequency of days emphasises the peak. By replacing the NAs with the
+means of the intervals, it has replaced all those values with an "average"" day,
+making the median peak more prominent, bringing the mean into alignment.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+By aggregating by weekday and weekend, it is possible to see that, on average,
+there are significantly more steps during the weekend daytime, than during the
+week. 
+This would fit with what might be expected, since during the week, people often
+work in an office, limiting their walking time.
+
+```{r echo=TRUE}
+
+# Add new weekday variable to newData data frame
+
+newData$weekday <- "weekday"
+newData$weekday[wday(as.Date(newData$date))==1|
+                  wday(as.Date(newData$date))==7] <- "weekend"
+newData$weekday <- as.factor(newData$weekday)
+
+# Create plotData data frame
+plotData <- aggregate(steps ~ interval + weekday, newData, mean)
+
+```
+
+The below graph provides a panel graph comparison between weekend and weekday
+using the lattice library.
+
+```{r echo=TRUE}
+# Use xyplot to plot steps against interval split by weekday
+# Use custom panel function to control output
+
+xyplot(steps ~ interval | weekday, data = plotData,  layout = c(1,2), 
+       panel = function(x,y) {
+         panel.xyplot(x, y, lty=1, cex = 1, type = "l")
+      })
+
+
+```
+
