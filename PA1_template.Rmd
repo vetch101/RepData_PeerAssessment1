@@ -176,7 +176,7 @@ The median steps value has now become the mean steps value, while the histogram
 of the fequency of days emphasises the peak. 
 
 By replacing the NAs with the means of the intervals, it has replaced all those 
-values with an "average"" day, making the median peak more prominent, bringing 
+values with an "average" day, making the median peak more prominent, bringing 
 the mean into alignment which fits with what would be expected.
 
 ## Are there differences in activity patterns between weekdays and weekends?
